@@ -1,0 +1,30 @@
+---
+description: Hard quota caps and audit logging — applies to every tool call.
+alwaysApply: true
+---
+
+# Quotas and audit logging
+
+Caps per single task (frozen v1):
+
+| Dimension       | Hard cap   |
+|-----------------|-----------:|
+| Agent turns     | 50         |
+| Search results  | 100        |
+| Tokens          | 1 000 000  |
+| Wall time       | 6 hours    |
+
+Charging:
+
+- Use `protogenius.quotas.QuotaLedger` for every accounting event.
+- Every research adapter must call the `pre_search` hook **before** the
+  network request; the hook performs both the soft- and hard-cap checks.
+- LLM responses must be charged via `ledger.charge_tokens(prompt=..., completion=...)`.
+
+Audit:
+
+- Every citation, decision, license record and gate event MUST land in
+  `audit.jsonl` via `protogenius.audit.AuditLog`.
+- Citations without URL or DOI are rejected by default
+  (`audit.fail_on_missing_citation: true` in `config/default.yaml`).
+- Copied code must carry an SPDX line via `AuditLog.log_license`.

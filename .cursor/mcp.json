@@ -1,0 +1,19 @@
+{
+  "$schema": "https://cursor.com/schemas/mcp.json",
+  "comment": "ProtoGenius MCP wiring. Edit URLs / commands as needed; secrets are pulled from environment variables so this file is safe to commit.",
+  "mcpServers": {
+    "arxiv": {
+      "comment": "Preferred arXiv MCP — set the URL (HTTP) or command (stdio). One must be present.",
+      "url": "${env:PROTOGENIUS_ARXIV_MCP_URL}",
+      "command": null,
+      "args": []
+    },
+    "github": {
+      "comment": "GitHub Copilot hosted MCP — endpoint frozen by §2.4.3 of the v1 contract.",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${env:PROTOGENIUS_GITHUB_TOKEN}"
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+---
+description: Citation discipline for the research streams.
+alwaysApply: true
+---
+
+# Citation discipline
+
+## Per-stream rules
+
+- **arXiv**  — preferred channel is the arXiv MCP. Window: last **3 months**.
+  Same work across versions (`v1` / `v2` / `v3`) collapses to **one** entry.
+- **Top venues** (ACL, ICML, NeurIPS, EMNLP, KDD, ICSE, FSE, ESEC, TSE) —
+  window: **1 year** since the conference date. Cite via
+  Semantic Scholar / OpenAlex / venue-specific proceedings scrapers.
+- **GitHub** — Copilot-hosted MCP. Sort primary stars, secondary release
+  frequency. Items with no releases sort by stars only. Tie policy:
+  `cutoff_include_all` (final list may exceed 3).
+- **Industry** — Anthropic / OpenAI / DeepMind / ByteDance / Alibaba /
+  Tencent / Meituan. Source types: official blog, product docs, technical
+  reports. Multiple sources covering the same capability stay **separate**.
+  All industry items must carry an `uncertainty` field in `extra` since
+  there is no official API.
+
+## Institution preference
+
+Agent-judged "top-tier" preference is allowed. Record the rationale in the
+research report (the synthesizer prompt does this for you).
+
+## Missing citation behaviour
+
+Items without URL or DOI are dropped by the citation_audit hook and a
+`citation incomplete` info event is written to the audit log.

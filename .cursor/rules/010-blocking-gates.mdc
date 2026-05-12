@@ -1,0 +1,31 @@
+---
+description: Blocking gate behaviour. Apply whenever the agent approaches GATE_* stages.
+alwaysApply: true
+---
+
+# Blocking gate behaviour
+
+ProtoGenius has **two** blocking gates plus the clarification cap:
+
+| Gate                         | When                                            | If unconfirmed |
+|------------------------------|-------------------------------------------------|----------------|
+| `GATE_RESEARCH_ADOPTION`     | After all research streams have been produced.  | Block SRS/TDD. |
+| `GATE_DOC_SIGNOFF`           | After SRS + TDD + interfaces + arch are drafted.| Block demo.    |
+| (cap) Clarification ≤ 3 rounds | During CLARIFY stage.                         | **Abort** task.|
+
+## Required behaviour
+
+1. Before entering a gate, summarize the artifacts you would like the user to
+   adopt (tables, diagrams, links — not just raw JSON).
+2. Render the prompt: `Run /confirm-research` or `Run /confirm-docs`. Do not
+   continue working on the next stage until the user types it.
+3. On a refusal, ask **one** focused follow-up question. If the refusal
+   persists, fall back to the relevant abort path:
+   - research refusal → re-run research with revised queries (charges quota).
+   - doc refusal → re-run drafting with the user-supplied notes.
+
+## Forbidden behaviour
+
+- Inferring user adoption from silence.
+- Pretending the gate has been confirmed when it has not.
+- Skipping the audit-log entry that records the gate decision.
