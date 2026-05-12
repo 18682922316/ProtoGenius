@@ -1,0 +1,32 @@
+name: e2e (opt-in)
+
+# Run on demand only — keeps the default CI cycle fast.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  playwright:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-e2e' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Python deps
+        run: pip install -e ".[dev]"
+      - name: Install Playwright
+        run: |
+          npm install --save-dev @playwright/test
+          npx playwright install --with-deps
+      - name: Run sample E2E (synthetic)
+        run: |
+          mkdir -p tests-e2e
+          echo "import { test, expect } from '@playwright/test';" > tests-e2e/smoke.spec.ts
+          echo "test('smoke', async ({ page }) => { await page.goto('https://example.com'); await expect(page).toHaveTitle(/Example Domain/); });" >> tests-e2e/smoke.spec.ts
+          npx playwright test tests-e2e/smoke.spec.ts --reporter=list

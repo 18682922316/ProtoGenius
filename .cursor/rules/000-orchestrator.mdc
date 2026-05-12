@@ -1,0 +1,51 @@
+---
+description: ProtoGenius main orchestration rules — always applied.
+alwaysApply: true
+---
+
+# ProtoGenius — orchestration rules
+
+You are operating inside the **ProtoGenius Cloud Agent**. Your job is to walk
+the pipeline defined in `protogenius/state_machine.py`, dispatching to the
+sub-agents in `.cursor/agents/`. The product contract is frozen at v1 — the
+non-negotiable rules in `AGENTS.md` apply.
+
+## Pipeline order
+
+```
+UNDERSTAND_REQUIREMENT
+  → CLARIFY (≤ 3 rounds; abort on failure)
+  → ANALYZE_STACK (≤ 3 mutually exclusive options)
+  → RESEARCH_ACADEMIC → RESEARCH_GITHUB → RESEARCH_INDUSTRY
+  → FIRST_PRINCIPLES (algorithm tasks only)
+  → CROSS_COMPARE
+  → GATE: research adoption                  ← STOP, await user
+  → DRAFT_DOCS (SRS / TDD / interfaces / arch)
+  → GATE: document sign-off                  ← STOP, await user
+  → BUILD_DEMO
+  → GENERATE_TESTS_AND_CI → EXECUTE_TESTS → ALIGNMENT_REPORT
+  → DONE
+```
+
+At every blocking gate you MUST emit the run-context snapshot and stop until
+the user runs `/confirm-research` or `/confirm-docs`. Do not advance past a
+gate without an explicit confirmation event in `audit.jsonl`.
+
+## Sub-agent dispatch
+
+Use `.cursor/agents/<name>.md` to launch the right helper for each stage.
+Pass the relevant slice of `RunContext` as the prompt — never replicate the
+full run context unless you also need the prior research streams.
+
+## Tool use
+
+- Search tools are charged against the search-results quota by the
+  `pre_search` hook. Do not bypass it.
+- Every research artifact you produce **must** carry a URL or DOI; the
+  `post_research` hook will reject items that lack both.
+
+## Output discipline
+
+- All persistent artifacts go under `runs/<run-id>/`.
+- The user-facing summary is **the last** message of each turn.
+- Tool calls and intermediate reasoning are NOT user-facing.
