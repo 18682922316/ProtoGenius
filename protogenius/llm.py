@@ -1,12 +1,19 @@
 """LLM client abstraction.
 
-Sub-agents and skills should depend on the `LLMClient` Protocol, not on a
-specific provider SDK. The orchestrator instantiates a real client based on
-``ProtoGeniusConfig.llm``; tests may inject a `RecordingLLMClient`.
+Sub-agents and skills depend on the `LLMClient` Protocol — never on a
+specific provider SDK. The orchestrator picks a concrete client based on
+``ProtoGeniusConfig.llm.provider``:
 
-The default implementation is intentionally minimal — it formats a chat-style
-request and uses ``httpx`` to call an OpenAI-compatible endpoint. Adding a new
-provider is a matter of subclassing `BaseHttpLLMClient`.
+- ``cursor``  — :class:`CursorDelegatedLLMClient`. Use this when running as a
+  Cursor Cloud Agent: the *Cursor agent itself* is the LLM, so the Python
+  ``LLMClient`` is intentionally inert and raises a guidance error if
+  anything actually tries to call it from outside Cursor.
+- ``openai`` / any OpenAI-compatible endpoint — :class:`BaseHttpLLMClient`.
+  Requires ``PROTOGENIUS_LLM_API_KEY``.
+- ``recording`` — :class:`RecordingLLMClient` test double; selected
+  automatically when ``--dry-run`` is passed to the CLI.
+
+Tests may inject a `RecordingLLMClient` directly.
 """
 
 from __future__ import annotations
@@ -122,8 +129,34 @@ class RecordingLLMClient:
         return LLMResponse(text=text, prompt_tokens=len(user), completion_tokens=len(text))
 
 
+class CursorDelegatedLLMClient:
+    """Inert client used when ProtoGenius runs *inside* Cursor.
+
+    In Cursor Cloud Agent mode the Cursor runtime itself is the LLM; the
+    Python orchestration layer is a library called by the Cursor agent
+    rather than a standalone driver. Hence this client should never be
+    invoked. If it is, that almost always means the standalone CLI was
+    started but configured for Cursor mode — surface a clear, actionable
+    error rather than silently sending an unauthenticated request.
+    """
+
+    def complete(self, system: str, user: str, **kwargs: Any) -> LLMResponse:  # noqa: ARG002
+        raise RuntimeError(
+            "LLM provider is set to 'cursor' but a Python LLM call was "
+            "attempted. Either:\n"
+            "  (a) run ProtoGenius inside Cursor Cloud Agent (the intended "
+            "mode for 'cursor' provider), or\n"
+            "  (b) switch the standalone CLI to an actual provider — set "
+            "`llm.provider: openai` in your config override (or the "
+            "matching JSON env override) and export PROTOGENIUS_LLM_API_KEY."
+        )
+
+
 def build_client(config: LLMConfig, *, dry_run: bool = False) -> LLMClient:
     """Factory helper used by the orchestrator and CLI."""
     if dry_run:
         return RecordingLLMClient(canned=["[dry-run completion]"])
+    provider = (config.provider or "").lower()
+    if provider == "cursor":
+        return CursorDelegatedLLMClient()
     return BaseHttpLLMClient(config)

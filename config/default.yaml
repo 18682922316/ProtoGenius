@@ -21,6 +21,12 @@ runtime:
     - windows
 
 llm:
+  # provider values:
+  #   - "cursor"  : run inside Cursor Cloud Agent (Cursor's subscribed model
+  #                 is the LLM; the Python LLMClient becomes an inert error
+  #                 stub — see protogenius.llm.CursorDelegatedLLMClient).
+  #   - "openai"  : OpenAI or any OpenAI-compatible endpoint.
+  # See docs/usage.md §"Two modes" for the full picture.
   provider: openai
   model: gpt-5
   api_key_env: PROTOGENIUS_LLM_API_KEY

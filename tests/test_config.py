@@ -36,3 +36,21 @@ def test_quota_caps_match_contract():
     assert cfg.quotas.max_search_results == 100
     assert cfg.quotas.max_tokens == 1_000_000
     assert cfg.quotas.max_walltime_seconds == 21_600
+
+
+def test_max_tokens_env_shortcut_lowers_cap(monkeypatch):
+    monkeypatch.setenv("PROTOGENIUS_MAX_TOKENS", "250000")
+    cfg = load_config()
+    assert cfg.quotas.max_tokens == 250_000
+
+
+def test_max_tokens_env_shortcut_cannot_raise_above_v1(monkeypatch):
+    monkeypatch.setenv("PROTOGENIUS_MAX_TOKENS", "9999999")
+    with pytest.raises(ValidationError):
+        load_config()
+
+
+def test_quota_env_shortcut_rejects_non_integer(monkeypatch):
+    monkeypatch.setenv("PROTOGENIUS_MAX_TURNS", "not-a-number")
+    with pytest.raises(ValueError, match="must be an integer"):
+        load_config()

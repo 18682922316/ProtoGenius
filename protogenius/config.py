@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import json
 import os
+import typing
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = REPO_ROOT / "config" / "default.yaml"
@@ -183,10 +184,26 @@ class TestingConfig(BaseModel):
 
 
 class QuotaCaps(BaseModel):
+    """Per-task quota caps.
+
+    Per §7.1 of the v1 contract, the **upper bounds** on these values are
+    frozen at 50 / 100 / 1_000_000 / 21_600. Users may *lower* them (e.g.
+    via ``PROTOGENIUS_MAX_TOKENS=200000`` for a cheap exploratory run) but
+    not raise them — the model validator below rejects that.
+    """
+
     max_turns: int = 50
     max_search_results: int = 100
     max_tokens: int = 1_000_000
     max_walltime_seconds: int = 21600
+
+    # Frozen v1 upper bounds — must match the values quoted in §7.1.
+    _FROZEN_UPPER_BOUNDS: typing.ClassVar[dict[str, int]] = {
+        "max_turns": 50,
+        "max_search_results": 100,
+        "max_tokens": 1_000_000,
+        "max_walltime_seconds": 21600,
+    }
 
     @field_validator("max_turns", "max_search_results", "max_tokens", "max_walltime_seconds")
     @classmethod
@@ -194,6 +211,17 @@ class QuotaCaps(BaseModel):
         if v <= 0:
             raise ValueError("quota fields must be positive integers")
         return v
+
+    @model_validator(mode="after")
+    def _enforce_v1_upper_bounds(self) -> QuotaCaps:
+        for field_name, frozen_max in self._FROZEN_UPPER_BOUNDS.items():
+            value = getattr(self, field_name)
+            if value > frozen_max:
+                raise ValueError(
+                    f"quotas.{field_name} = {value} exceeds the frozen v1 "
+                    f"upper bound ({frozen_max}); v1 caps may only be lowered"
+                )
+        return self
 
 
 class AuditConfig(BaseModel):
@@ -255,13 +283,49 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
-def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
-    """Allow top-level overrides via environment variables.
+_QUOTA_ENV_TO_FIELD: dict[str, str] = {
+    "PROTOGENIUS_MAX_TURNS": "max_turns",
+    "PROTOGENIUS_MAX_SEARCH_RESULTS": "max_search_results",
+    "PROTOGENIUS_MAX_TOKENS": "max_tokens",
+    "PROTOGENIUS_MAX_WALLTIME_SECS": "max_walltime_seconds",
+}
 
-    A variable named ``PROTOGENIUS_<UPPER_KEY>`` is interpreted as JSON if it
-    starts with ``{`` or ``[`` or ``"`` — otherwise as a literal scalar.
+
+def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
+    """Apply environment-variable overrides on top of the merged config.
+
+    Two override styles are supported:
+
+    1. **Section overrides** — ``PROTOGENIUS_<TOP_LEVEL_KEY>`` is interpreted
+       as JSON when present, replacing the entire section. Useful for
+       overriding nested config in a single shot, e.g.::
+
+           PROTOGENIUS_LLM='{"provider":"openai","model":"gpt-5"}'
+
+    2. **Scalar shortcuts** — a small set of single-field shortcuts that map
+       to specific schema fields. Currently:
+
+       =========================================  ==========================
+       Variable                                    Mapped field
+       =========================================  ==========================
+       ``PROTOGENIUS_MAX_TURNS``                   ``quotas.max_turns``
+       ``PROTOGENIUS_MAX_SEARCH_RESULTS``          ``quotas.max_search_results``
+       ``PROTOGENIUS_MAX_TOKENS``                  ``quotas.max_tokens``
+       ``PROTOGENIUS_MAX_WALLTIME_SECS``           ``quotas.max_walltime_seconds``
+       =========================================  ==========================
+
+    Variables that don't match either style are ignored — that keeps a
+    user's broader environment from leaking into the config inadvertently.
+
+    Note: secret / endpoint variables such as ``PROTOGENIUS_LLM_API_KEY``,
+    ``PROTOGENIUS_GITHUB_TOKEN`` and ``PROTOGENIUS_ARXIV_MCP_URL`` are NOT
+    consumed here — they are read directly by the relevant adapters
+    (`protogenius.llm`, `protogenius.research.github_mcp`, etc.) at the
+    point of use so that secrets never enter the validated config object.
     """
     prefix = "PROTOGENIUS_"
+
+    # Style 1 — section overrides.
     for env_name, raw in os.environ.items():
         if not env_name.startswith(prefix):
             continue
@@ -272,6 +336,20 @@ def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
             data[key] = json.loads(raw)
         except json.JSONDecodeError:
             data[key] = raw
+
+    # Style 2 — scalar quota shortcuts.
+    for env_name, field_name in _QUOTA_ENV_TO_FIELD.items():
+        raw = os.environ.get(env_name, "").strip()
+        if not raw:
+            continue
+        try:
+            value = int(raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"{env_name} must be an integer; got {raw!r}"
+            ) from exc
+        data.setdefault("quotas", {})[field_name] = value
+
     return data
 
 
