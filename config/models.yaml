@@ -1,0 +1,22 @@
+# Model routing table. Per requirements §1.2, model endpoints are injected
+# from user-supplied config — this file documents the slots ProtoGenius
+# expects and lets you bind each stage to a different model if desired.
+
+defaults:
+  reasoning_model: gpt-5
+  drafting_model: gpt-5
+  long_context_model: gpt-5-long
+  alignment_model: claude-opus-4.7
+
+stage_overrides:
+  clarification: reasoning_model
+  stack_analysis: reasoning_model
+  academic_research: reasoning_model
+  github_research: reasoning_model
+  industry_research: reasoning_model
+  algo_first_principles: reasoning_model
+  srs_drafting: long_context_model
+  tdd_drafting: long_context_model
+  demo_code_generation: drafting_model
+  test_generation: drafting_model
+  semantic_alignment: alignment_model

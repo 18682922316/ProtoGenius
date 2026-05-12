@@ -1,0 +1,71 @@
+# Search policy detail. Loaded by protogenius.research.* adapters.
+
+arxiv:
+  window_days: 90
+  max_results_per_query: 25
+  preferred_categories:
+    - cs.AI
+    - cs.CL
+    - cs.LG
+    - cs.SE
+  dedup:
+    by_arxiv_family: true   # collapse v1/v2/v3 to canonical id
+
+conference_venues:
+  - id: ACL
+    domain: NLP
+    window_days: 365
+  - id: EMNLP
+    domain: NLP
+    window_days: 365
+  - id: NeurIPS
+    domain: ML
+    window_days: 365
+  - id: ICML
+    domain: ML
+    window_days: 365
+  - id: KDD
+    domain: DataMining
+    window_days: 365
+  - id: ICSE
+    domain: SE
+    window_days: 365
+  - id: FSE
+    domain: SE
+    window_days: 365
+  - id: ESEC
+    domain: SE
+    window_days: 365
+  - id: TSE
+    domain: SE_Journal
+    window_days: 365
+
+github:
+  default_per_page: 25
+  max_query_iterations: 4
+  sort:
+    primary: stars
+    secondary: release_frequency
+  no_release_handling: stars_only
+  tie_policy: cutoff_include_all
+  target_top_n: 3
+
+industry:
+  targets:
+    Anthropic:
+      blog: https://www.anthropic.com/news
+      docs: https://docs.anthropic.com
+    OpenAI:
+      blog: https://openai.com/blog
+      docs: https://platform.openai.com/docs
+    DeepMind:
+      blog: https://deepmind.google/discover/blog
+    ByteDance:
+      blog: https://www.bytedance.com/en/news
+    Alibaba:
+      blog: https://damo.alibaba.com/blog
+    Tencent:
+      blog: https://www.tencent.com/en-us/research.html
+    Meituan:
+      blog: https://tech.meituan.com
+  uncertainty_label: "Inferred from public web; may be incomplete or stale."

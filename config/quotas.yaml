@@ -1,0 +1,20 @@
+# Canonical per-task quota caps. Mirrors §7.1 of the v1 requirements.
+# Mutable fields:
+#   - hard_cap : absolute upper bound (the runtime aborts on overflow)
+#   - soft_cap : warning threshold (logged + surfaced to the user)
+#
+# If you change any *hard_cap* here, you are changing the product contract.
+# Do not bump these without coordinated requirement updates.
+
+turns:
+  hard_cap: 50
+  soft_cap: 40
+search_results:
+  hard_cap: 100
+  soft_cap: 80
+tokens:
+  hard_cap: 1000000
+  soft_cap: 800000
+walltime_seconds:
+  hard_cap: 21600     # 6 hours
+  soft_cap: 18000     # 5 hours

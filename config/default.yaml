@@ -1,0 +1,167 @@
+# ProtoGenius — default runtime configuration.
+#
+# Every key under this file may be overridden by an environment variable of
+# the form  PROTOGENIUS_<UPPER_SNAKE_KEY>  (top-level keys only). Nested keys
+# can be overridden by exporting JSON, e.g.
+#   PROTOGENIUS_LLM='{"provider":"anthropic","model":"claude-opus-4.7"}'
+#
+# This file is loaded by protogenius.config.load_config(). See
+# docs/configuration.md for the canonical reference.
+
+runtime:
+  # Logical name of the run; auto-generated when empty.
+  run_name: ""
+  # Where ProtoGenius will write artifacts (relative to repo root).
+  workspace_root: "runs"
+  # Hash seed used to make any artifact-id generation deterministic when set.
+  random_seed: 20260101
+  # Acceptance platforms — must match CI matrix entries.
+  acceptance_platforms:
+    - linux
+    - windows
+
+llm:
+  provider: openai
+  model: gpt-5
+  api_key_env: PROTOGENIUS_LLM_API_KEY
+  base_url_env: PROTOGENIUS_LLM_BASE_URL
+  # Temperature is held low so that requirement reasoning is reproducible.
+  temperature: 0.2
+
+mcp:
+  arxiv:
+    # Either a stdio command (list) or an HTTP URL. Configure one or the other.
+    url_env: PROTOGENIUS_ARXIV_MCP_URL
+    command: []
+  github:
+    url: "https://api.githubcopilot.com/mcp/"
+    token_env: PROTOGENIUS_GITHUB_TOKEN
+
+clarification:
+  max_rounds: 3
+  abort_on_failure: true
+
+stack_analysis:
+  # Exactly the cap from the requirements doc — three mutually exclusive options.
+  max_options: 3
+  # Differences may be language / runtime only.
+  require_architectural_diversity: false
+
+research:
+  academic:
+    # arXiv: last 3 months
+    arxiv_window_days: 90
+    # Top-tier venues: within 1 year of the conference date.
+    venue_window_days: 365
+    venues:
+      - ACL
+      - ICML
+      - NeurIPS
+      - EMNLP
+      - KDD
+      - ICSE
+      - FSE
+      - ESEC
+      - TSE
+    extra_channels:
+      - semantic_scholar
+      - openalex
+      - conference_proceedings_scraper
+    dedup:
+      same_work_across_versions: true
+    institution_preference:
+      mode: agent_judged       # agent makes the call at runtime
+      record_rationale: true   # must appear in the research report
+  github:
+    sort:
+      primary: stars
+      secondary: release_frequency
+    no_release_handling: stars_only
+    target_top_n: 3
+    tie_policy: cutoff_include_all   # frozen for v1
+  industry:
+    targets:
+      - Anthropic
+      - OpenAI
+      - DeepMind
+      - ByteDance
+      - Alibaba
+      - Tencent
+      - Meituan
+    sources:
+      - official_blog
+      - product_docs
+      - tech_report
+    allow_public_web_summary: true   # must be flagged "uncertain" in report
+    multi_source_merge: false
+
+algo_task:
+  # Conditional output trigger: keyword/intent detector inside orchestrator.
+  trigger_keywords:
+    - algorithm
+    - model
+    - optimization
+    - 算法
+    - 模型
+    - 优化
+  instances:
+    count: 3            # exactly three
+    require_reproducibility: true
+    reproducibility_checklist:
+      - fixed_random_seed
+      - pinned_inputs
+      - pinned_dependencies
+      - pinned_data_versions
+
+documents:
+  standard: IEEE-29148-2018
+  generate:
+    - srs
+    - tdd
+    - interfaces
+    - data_structures
+    - architecture_diagram
+
+demo:
+  # Multi-form preference order; orchestrator overrides per task type.
+  default_priority:
+    - fullstack
+    - script_or_cli
+    - algorithm_prototype
+  acceptance_platforms:
+    - linux
+    - windows
+
+testing:
+  spec_layer: language_agnostic
+  must_include_e2e_when_applicable: true
+  ci_provider: github_actions
+  alignment:
+    backend: llm
+    record_confidence: true
+    record_reasoning_chain: true
+
+quotas:
+  # See config/quotas.yaml for the same numbers — that file is the
+  # canonical source. They are duplicated here for visibility only.
+  max_turns: 50
+  max_search_results: 100
+  max_tokens: 1_000_000
+  max_walltime_seconds: 21600        # 6 hours
+
+audit:
+  citation_fields:
+    - url
+    - doi
+    - version
+  artifact_file: audit.jsonl
+  fail_on_missing_citation: true
+
+compliance:
+  respect_oss_licenses: true
+  record_spdx_for_copied_code: true
+  collect_pii_by_default: false
+  internal_codebase_research:
+    enabled: false
+    repositories: []
+    credentials_env: ""
