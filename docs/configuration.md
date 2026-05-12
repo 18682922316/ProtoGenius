@@ -26,14 +26,44 @@ breaking the v1 product contract:
 
 ## Environment variables
 
-| Variable                                  | Purpose                                |
-|-------------------------------------------|----------------------------------------|
-| `PROTOGENIUS_LLM_API_KEY`                 | LLM provider key                       |
-| `PROTOGENIUS_LLM_BASE_URL`                | LLM provider base URL                  |
-| `PROTOGENIUS_ARXIV_MCP_URL`               | arXiv MCP endpoint                     |
-| `PROTOGENIUS_GITHUB_TOKEN`                | GitHub PAT for the Copilot MCP         |
-| `PROTOGENIUS_SEMANTIC_SCHOLAR_API_KEY`    | Polite-pool routing                    |
-| `PROTOGENIUS_OPENALEX_EMAIL`              | OpenAlex `mailto`                      |
+The runtime distinguishes between **secret / endpoint** variables (read
+directly at call time by the relevant adapter) and **scalar overrides**
+(folded into the validated config via `_apply_env_overrides`). Secrets
+never enter the validated `ProtoGeniusConfig` object so they cannot leak
+into snapshots.
+
+### Secret / endpoint variables
+
+| Variable                                  | Required for | Behavior if missing |
+|-------------------------------------------|--------------|---------------------|
+| `PROTOGENIUS_LLM_API_KEY`                 | Mode B only  | `BaseHttpLLMClient.complete()` raises `RuntimeError`. Mode A is unaffected. |
+| `PROTOGENIUS_LLM_BASE_URL`                | Optional     | Defaults to `https://api.openai.com/v1`. |
+| `PROTOGENIUS_ARXIV_MCP_URL`               | Optional     | arXiv adapter raises at call time; Semantic Scholar + OpenAlex still cover academic search. |
+| `PROTOGENIUS_GITHUB_TOKEN`                | Strongly recommended | GitHub MCP adapter falls back to anonymous calls; the Copilot endpoint will reject them. |
+| `PROTOGENIUS_SEMANTIC_SCHOLAR_API_KEY`    | Optional     | Anonymous tier — lower rate limit. |
+| `PROTOGENIUS_OPENALEX_EMAIL`              | Optional     | No polite-pool routing; stricter rate limits. |
+
+### Section overrides (advanced)
+
+Variables that share a top-level config key name are interpreted as
+**JSON** and replace the entire section. Example:
+
+```bash
+export PROTOGENIUS_LLM='{"provider":"cursor","model":"native"}'
+```
+
+### Scalar quota shortcuts
+
+| Variable                            | Maps to                          |
+|-------------------------------------|----------------------------------|
+| `PROTOGENIUS_MAX_TURNS`             | `quotas.max_turns`               |
+| `PROTOGENIUS_MAX_SEARCH_RESULTS`    | `quotas.max_search_results`      |
+| `PROTOGENIUS_MAX_TOKENS`            | `quotas.max_tokens`              |
+| `PROTOGENIUS_MAX_WALLTIME_SECS`     | `quotas.max_walltime_seconds`    |
+
+These shortcuts **can only lower** the per-task caps. Values that exceed
+the frozen v1 upper bounds (50 / 100 / 1 000 000 / 21 600) are rejected
+by `QuotaCaps._enforce_v1_upper_bounds`.
 
 ## Per-run overrides
 

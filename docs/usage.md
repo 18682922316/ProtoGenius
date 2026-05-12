@@ -1,5 +1,29 @@
 # Usage guide
 
+## Two modes
+
+ProtoGenius runs in one of two modes. **The choice determines which
+secrets you need.** A single quick check (`protogenius doctor`) reports
+which mode is active and what's missing.
+
+| Mode | Who drives the LLM? | `PROTOGENIUS_LLM_API_KEY` required? | Best for |
+|------|---------------------|-------------------------------------|----------|
+| **A — Cursor Cloud Agent** (default delivery form) | The Cursor agent itself (uses your IDE's subscribed model). The Python package is consumed as a library by the Cursor agent through the subagent / skill / hook surface under `.cursor/`. | **No.** Set `llm.provider: cursor` in your override to install an inert client that errors if called from outside Cursor. | Day-to-day use through the Cursor IDE. |
+| **B — Standalone Python CLI** (`protogenius run ...`) | The Python `LLMClient` calls an OpenAI-compatible endpoint. | **Yes.** | Headless servers, CI pipelines, scripted automation. |
+
+The research adapters (arXiv MCP, GitHub MCP, Semantic Scholar,
+OpenAlex, industry blog crawler) are mode-independent — they always read
+their credentials directly from environment variables at call time, so the
+same `PROTOGENIUS_GITHUB_TOKEN` / `PROTOGENIUS_ARXIV_MCP_URL` / … work in
+both modes.
+
+> **Mode A FAQ — "do I need to do anything to enable Cursor mode?"** No.
+> The default config is already mode-A safe in the sense that the Python
+> orchestrator is never spun up. If you also want the Python CLI to
+> *refuse* to run accidentally without a key, set `llm.provider: cursor`
+> in your override; then `protogenius run ...` raises a clear error
+> instead of trying to hit an OpenAI endpoint with no key.
+
 ## Installation
 
 ```bash
