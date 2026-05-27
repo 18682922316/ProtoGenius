@@ -43,30 +43,30 @@ state machine, research adapters, document generators and CI scaffolds.
 
 ```mermaid
 flowchart TD
-    A[Natural-language task<br/>(+ optional scoped_input / knowledge_base)] --> B[Requirement understanding]
+    A["Natural-language task<br/>(+ optional scoped_input / knowledge_base)"] --> B[Requirement understanding]
     B --> C{Need clarification?}
-    C -- yes (≤ 3 rounds) --> C
+    C -- "yes (≤ 3 rounds)" --> C
     C -- failed --> X[Abort with reason]
-    C -- ok --> SP[Select profile<br/>full_pipeline ↔ research_and_docs_only]
-    SP --> KB[Ingest optional KB<br/>local_path / github_repo]
-    KB --> D[Tech-stack analysis ≤ 3 mutually exclusive options]
+    C -- ok --> SP["Select profile<br/>full_pipeline ↔ research_and_docs_only"]
+    SP --> KB["Ingest optional KB<br/>local_path / github_repo"]
+    KB --> D["Tech-stack analysis ≤ 3 mutually exclusive options"]
     D --> E[Academic research]
     D --> F[GitHub research]
     D --> G[Industry research]
     D --> H{Algorithm-class task?}
-    H -- yes --> I[First-principles + Mermaid algo diagram + 3 reproducible instances]
+    H -- yes --> I["First-principles + Mermaid algo diagram + 3 reproducible instances"]
     H -- no --> J[skip]
     E --> K[Cross-comparison + common challenges]
     F --> K
     G --> K
     I --> K
-    K --> INS[Per-source insight reports<br/>(academic / OSS / enterprise)]
-    INS --> L[(Gate 1) User adopts research]
-    L --> M[Generate SRS + TDD + interfaces + arch (IEEE 29148)]
-    M --> LD[Four-layer tech pack<br/>L1 → L2 → L3 → L4 + formalization]
-    LD --> N[(Gate 2) Doc sign-off<br/>merged: SRS/TDD + layer pack]
-    N --> O[Demo scaffold (skipped if research_and_docs_only)]
-    O --> P[Test generation + E2E (when applicable) + CI]
+    K --> INS["Per-source insight reports<br/>(academic / OSS / enterprise)"]
+    INS --> L["Gate 1 — User adopts research"]
+    L --> M["Generate SRS + TDD + interfaces + arch (IEEE 29148)"]
+    M --> LD["Four-layer tech pack<br/>L1 → L2 → L3 → L4 + formalization"]
+    LD --> N["Gate 2 — Doc sign-off<br/>merged: SRS/TDD + layer pack"]
+    N --> O["Demo scaffold (skipped if research_and_docs_only)"]
+    O --> P["Test generation + E2E (when applicable) + CI"]
     P --> Q[Execute tests + LLM semantic alignment]
     Q --> R[Test report + issues + improvements + alignment conclusion]
 ```
