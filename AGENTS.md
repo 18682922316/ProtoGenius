@@ -120,3 +120,40 @@ patterns already established under `tests/`.
 - **Prefer adding configuration over hardcoding policy.**
 - **Record citations.** If you produce a research artifact you must log a
   citation entry through `protogenius.audit.log_citation`.
+
+## Cursor Cloud specific instructions
+
+### Environment
+
+- Python 3.12 is available system-wide. The update script installs the
+  package in editable mode with dev extras (`pip install -e ".[dev]"`).
+  No virtual environment wrapper is needed — the Cloud VM uses the system
+  Python directly.
+- `python3.12-venv` must be installed if you need an isolated venv
+  (`sudo apt-get install -y python3.12-venv`). The update script does not
+  create a venv; it installs into the system site-packages.
+
+### Common commands
+
+| Task | Command |
+|------|---------|
+| Lint | `ruff check .` |
+| Type-check | `mypy protogenius/` |
+| Tests | `pytest` (all 83 tests run offline — no API keys needed) |
+| Show config | `protogenius show-config` |
+| Show quotas | `protogenius show-quotas` |
+| Env check | `protogenius doctor` |
+| Dry-run pipeline | `protogenius run "task" --dry-run --yes` |
+
+### Caveats
+
+- `protogenius doctor` exits non-zero when `PROTOGENIUS_LLM_API_KEY` is
+  unset. This is expected — standalone CLI mode (Mode B) requires an LLM
+  key. When running as a Cursor Cloud Agent (Mode A with
+  `llm.provider: cursor`), the key is not needed.
+- The `--dry-run` flag uses a recording LLM client that returns canned
+  responses. The pipeline will correctly halt at `GATE_RESEARCH_ADOPTION`
+  because the recording client does not produce real research artifacts.
+  This is expected behavior demonstrating the gate-check hooks work.
+- Tests are fully offline — they use `httpx.MockTransport` and recording
+  stubs. No network or API keys are required to run the test suite.
