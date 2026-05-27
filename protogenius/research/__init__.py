@@ -11,6 +11,7 @@ adapter — the pipeline only sees normalised `ResearchItem` instances.
 from .base import ResearchPipeline, SearchAdapter, SearchQuery
 from .dedup import deduplicate_papers
 from .ranking import RepoRanking
+from .scope import narrow_queries, select_layers
 
 __all__ = [
     "RepoRanking",
@@ -18,4 +19,6 @@ __all__ = [
     "SearchAdapter",
     "SearchQuery",
     "deduplicate_papers",
+    "narrow_queries",
+    "select_layers",
 ]
