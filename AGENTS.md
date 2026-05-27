@@ -12,30 +12,37 @@ that the ProtoGenius runtime uses to orient sub-agents.
 ## 1. Mission
 
 ProtoGenius is an **end-to-end autonomous task validation agent**. The product
-contract is frozen at requirements v1 (see the issue / PR body that created
-the repo). Your job, as an agent operating on this repo, is to keep the system
-faithful to that contract.
+contract is frozen at requirements **v2** (with v1 retained read-only for
+traceability). Your job, as an agent operating on this repo, is to keep the
+system faithful to the v2 contract.
 
-## 2. Non-negotiable rules (lifted from v1 requirements)
+## 2. Non-negotiable rules (lifted from v2 requirements)
 
 1. **Two blocking human gates** must remain in the pipeline:
    - *Research adoption* — between research output and SRS/TDD drafting.
-   - *Document sign-off* — between SRS/TDD finalization and demo build.
+   - *Document sign-off* — between SRS/TDD + **four-layer pack** finalization
+     and demo build. By default this gate covers BOTH artifacts (v2 §3 —
+     *merged sign-off*); the user can opt into two consecutive gates by
+     setting `documents.merge_tdd_and_layer_signoff: false`.
    Removing or auto-bypassing these gates is a regression.
 2. **Clarification is capped at 3 rounds.** On failure the system **aborts**;
-   it must not silently invent default requirements.
+   it must not silently invent default requirements. Clarification rounds
+   prioritize filling `core_objectives` / `challenges` / `constraints` per
+   v2 §2.1.1.
 3. **Tech-stack analysis emits ≤ 3 mutually-exclusive options.** Differences
    may be limited to language / runtime — do not require architecture-style
    diversity.
 4. **Quotas are hard caps**: 50 turns, 100 search results, 1M tokens, < 6h
-   wall time per task. The quota guard hook must be honored.
-5. **Acceptance platforms are Windows + Linux.** macOS is explicitly out of v1
-   scope for acceptance — do not add it as a required CI matrix entry.
+   wall time per task. The quota guard hook must be honored. Scoped runs may
+   *lower* the per-run caps via `scoped_input.quota_scale_factor` but **must
+   never** raise them above §7.1.
+5. **Acceptance platforms are Windows + Linux.** macOS is explicitly out of
+   v2 scope for acceptance — do not add it as a required CI matrix entry.
 6. **Algorithm tasks trigger** first-principles writeup + Mermaid algo
    diagram + **exactly 3 reproducible instances** (fixed seed, pinned data).
 7. **GitHub ranking**: Stars then Release-frequency. Targets TOP-3, but
    *cut-off-include-all* on ties (final list may exceed 3). The config knob
-   `github_tie_policy` is frozen at `cutoff_include_all` for v1.
+   `github_tie_policy` is frozen at `cutoff_include_all` for v2.
 8. **arXiv** uses an MCP. **Time windows**: arXiv past 3 months; top-tier
    venues within 1 year of the conference date. Same work across versions is
    deduplicated to one entry.
@@ -45,6 +52,22 @@ faithful to that contract.
 10. **Tests derive from SRS + TDD only**, not from the user's raw
     natural-language input. Semantic alignment uses an LLM and must report
     confidence + reasoning chain.
+11. **v2 §2.4.A/B/C — one structured insight report per accepted research
+    source.** Reports MUST carry identification + core conclusions + auditable
+    citation; the generator refuses to write artifacts that violate the
+    v2 §2.5 minimum-content baseline.
+12. **v2 §4.4 — four-layer tech doc pack (L1 → L2 → L3 → L4).** Every layer
+    doc MUST include the `## 形式化定义` block populated with the
+    layer-specific elements listed in §4.4.5. The generator refuses to write
+    artifacts that lack the block (`FormalizationBlockMissingError`).
+13. **v2 §2.6 / §2.7 — profile-aware demo gating.** When the effective
+    profile is `research_and_docs_only` (default for scoped tasks),
+    `BUILD_DEMO` / `GENERATE_TESTS_AND_CI` / `EXECUTE_TESTS` are SKIPPED.
+    Producing a demo in that mode without explicit user opt-in is a
+    regression.
+14. **v2 §2.8 — knowledge base is opt-in.** When configured, the four-layer
+    writer prefers existing KB docs via `kb_ref` and surfaces disagreements
+    in `LayerDoc.conflicts`. Conflict events are recorded in the audit log.
 
 ## 3. Repository conventions
 

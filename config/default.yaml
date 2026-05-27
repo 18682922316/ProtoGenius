@@ -19,8 +19,18 @@ runtime:
   acceptance_platforms:
     - linux
     - windows
+  # v2 §2.6 — default profile when no scoped_input is provided.
+  # A scoped_input automatically downgrades to research_and_docs_only
+  # unless the user explicitly opts back into a prototype demo.
+  default_profile: full_pipeline   # full_pipeline | research_and_docs_only
 
 llm:
+  # provider values:
+  #   - "cursor"  : run inside Cursor Cloud Agent (Cursor's subscribed model
+  #                 is the LLM; the Python LLMClient becomes an inert error
+  #                 stub — see protogenius.llm.CursorDelegatedLLMClient).
+  #   - "openai"  : OpenAI or any OpenAI-compatible endpoint.
+  # See docs/usage.md §"Two modes" for the full picture.
   provider: openai
   model: gpt-5
   api_key_env: PROTOGENIUS_LLM_API_KEY
@@ -121,6 +131,49 @@ documents:
     - interfaces
     - data_structures
     - architecture_diagram
+  # v2 §3 — merge TDD review with the four-layer pack into ONE sign-off
+  # gate. Set to false to require two separate gates.
+  merge_tdd_and_layer_signoff: true
+
+# v2 §2.4.A/B/C — insight reports per accepted research source.
+insights:
+  one_per_accepted_source: true
+  insight_types: [academic, oss, enterprise]
+  enforce_minimum_content: true
+
+# v2 §4.4 — four-layer technical documentation system.
+layer_docs:
+  # Bottom-up order: L1 -> L2 -> L3 -> L4.
+  layers:
+    - foundation_theory   # L1 — symbols, axioms, theorems, applicability
+    - atomic_algorithm    # L2 — single-purpose algorithms / models
+    - tech_topic          # L3 — full-spectrum solution families
+    - ai_application      # L4 — end-user AI products / agents
+  # §4.4.5 — every layer doc MUST carry a formalization block.
+  require_formalization_block: true
+  # §2.5 minimum-content baseline.
+  enforce_minimum_content: true
+
+# v2 §2.7 — scoped research (topic / algorithm / theory / product).
+scoped_input:
+  allowed_types: [topic, algorithm, theory, product]
+  # Default behavior when a scoped_input is present and the user has NOT
+  # explicitly asked for a prototype Demo. Per §5 / §7.1 / §8 the
+  # scoped run defaults to research_and_docs_only with NO demo.
+  default_profile_when_scoped: research_and_docs_only
+  default_generate_prototype_demo: false
+  # Scales quotas DOWN proportionally for scoped runs. Cannot exceed
+  # §7.1 hard caps in either direction.
+  quota_scale_factor: 0.5
+
+# v2 §2.8 — optional domain knowledge base. Users supply paths at
+# runtime via the task input (see Appendix A of the v2 spec).
+knowledge_base:
+  enabled: false
+  local_path: null
+  github_repo: null              # owner/repo@ref:subdir
+  mark_conflicts: true
+  max_docs_per_run: 200
 
 demo:
   # Multi-form preference order; orchestrator overrides per task type.

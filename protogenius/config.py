@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import json
 import os
+import typing
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = REPO_ROOT / "config" / "default.yaml"
@@ -35,14 +36,26 @@ class RuntimeConfig(BaseModel):
     workspace_root: str = "runs"
     random_seed: int = 20260101
     acceptance_platforms: list[str] = Field(default_factory=lambda: ["linux", "windows"])
+    # v2 §2.6 — the default run profile when no scoped_input is provided.
+    # Scoped inputs (§2.7) automatically switch the profile to
+    # research_and_docs_only inside protogenius.context.RunContext.resolve_profile().
+    default_profile: str = "full_pipeline"
 
     @field_validator("acceptance_platforms")
     @classmethod
     def _no_macos(cls, v: list[str]) -> list[str]:
-        # macOS is explicitly NOT a v1 acceptance target.
+        # macOS is explicitly NOT a v1/v2 acceptance target.
         if "macos" in {p.lower() for p in v}:
-            raise ValueError("macOS is not a v1 acceptance platform")
+            raise ValueError("macOS is not a v2 acceptance platform")
         return [p.lower() for p in v]
+
+    @field_validator("default_profile")
+    @classmethod
+    def _known_profile(cls, v: str) -> str:
+        allowed = {"full_pipeline", "research_and_docs_only"}
+        if v not in allowed:
+            raise ValueError(f"runtime.default_profile must be one of {sorted(allowed)}")
+        return v
 
 
 class LLMConfig(BaseModel):
@@ -162,6 +175,91 @@ class AlgoTaskConfig(BaseModel):
 class DocumentsConfig(BaseModel):
     standard: str = "IEEE-29148-2018"
     generate: list[str] = Field(default_factory=list)
+    # v2 §3 — merge the TDD review and the four-layer pack into ONE sign-off
+    # gate by default. Operators can opt back into two separate gates by
+    # setting this to False; the orchestrator then runs an extra
+    # `GATE_LAYER_DOC_SIGNOFF` immediately after `GATE_DOC_SIGNOFF`.
+    merge_tdd_and_layer_signoff: bool = True
+
+
+class LayerDocsConfig(BaseModel):
+    """v2 §4.4 — four-layer technical documentation system."""
+
+    # Layer ids and human labels. Ordered bottom-up so that the dependency
+    # arrow `L1 -> L2 -> L3 -> L4` is obvious from the list itself.
+    layers: list[str] = Field(
+        default_factory=lambda: [
+            "foundation_theory",
+            "atomic_algorithm",
+            "tech_topic",
+            "ai_application",
+        ]
+    )
+    # v2 §4.4.5 — every layer doc MUST contain a `## 形式化定义` block
+    # (or equivalent). The generator enforces this; the audit log records
+    # any layer that lacked one. Setting this to False is allowed for
+    # internal experiments but flagged in the doctor command.
+    require_formalization_block: bool = True
+    # v2 §2.5 — minimum-content "底线". Every generated layer doc MUST at
+    # least carry frontmatter + a basic/core info section + a
+    # formalization block + a reference list, otherwise the run aborts.
+    enforce_minimum_content: bool = True
+
+
+class InsightsConfig(BaseModel):
+    """v2 §2.4.A/B/C — insight reports per accepted research item."""
+
+    # One insight per accepted source by default. The synthesizer may
+    # bundle multiple sources into a single insight (e.g. survey paper +
+    # follow-up) when justified; the generator records that in the
+    # report's `coverage_note`.
+    one_per_accepted_source: bool = True
+    insight_types: list[str] = Field(
+        default_factory=lambda: ["academic", "oss", "enterprise"]
+    )
+    # v2 §2.5 minimum content. Every insight MUST carry:
+    #   - identification (insight_id / insight_type / title / source link)
+    #   - core conclusions
+    #   - auditable citation (url / doi / version / accessed_at)
+    # Setting this to False relaxes the check at the cost of losing the
+    # audit guarantee — strongly discouraged.
+    enforce_minimum_content: bool = True
+
+
+class ScopedInputConfig(BaseModel):
+    """v2 §2.7 — accepted scoped-input types."""
+
+    allowed_types: list[str] = Field(
+        default_factory=lambda: ["topic", "algorithm", "theory", "product"]
+    )
+    # Default behavior when a scoped_input is present and the user has
+    # NOT explicitly asked for a prototype demo. Per §2.7 / §5 / §8 the
+    # scoped run must default to research_and_docs_only with NO demo.
+    default_profile_when_scoped: str = "research_and_docs_only"
+    default_generate_prototype_demo: bool = False
+    # Quota proportional scaling for scoped runs (frozen v2: cannot
+    # exceed §7.1 hard caps; this knob only scales DOWN).
+    quota_scale_factor: float = 0.5
+
+
+class KnowledgeBaseConfig(BaseModel):
+    """v2 §2.8 — optional domain knowledge base."""
+
+    # Both fields are user-supplied at runtime; the defaults here only
+    # describe the *capability*, not a default content source.
+    enabled: bool = False
+    local_path: str | None = None
+    # ``github_repo`` format: ``owner/repo@ref:subdir`` (ref is optional;
+    # subdir is optional). Parsed by protogenius.kb.github.parse_locator.
+    github_repo: str | None = None
+    # Conflict marking — when KB and current research disagree, the
+    # generator inserts a CONFLICT marker into the relevant layer doc and
+    # records a decision event in the audit log. The user-confirmation
+    # outcome resolves the conflict.
+    mark_conflicts: bool = True
+    # Cap on how many KB documents we read in a single run. Keeps the
+    # quota budget predictable.
+    max_docs_per_run: int = 200
 
 
 class DemoConfig(BaseModel):
@@ -183,10 +281,26 @@ class TestingConfig(BaseModel):
 
 
 class QuotaCaps(BaseModel):
+    """Per-task quota caps.
+
+    Per §7.1 of the v1 contract, the **upper bounds** on these values are
+    frozen at 50 / 100 / 1_000_000 / 21_600. Users may *lower* them (e.g.
+    via ``PROTOGENIUS_MAX_TOKENS=200000`` for a cheap exploratory run) but
+    not raise them — the model validator below rejects that.
+    """
+
     max_turns: int = 50
     max_search_results: int = 100
     max_tokens: int = 1_000_000
     max_walltime_seconds: int = 21600
+
+    # Frozen v1 upper bounds — must match the values quoted in §7.1.
+    _FROZEN_UPPER_BOUNDS: typing.ClassVar[dict[str, int]] = {
+        "max_turns": 50,
+        "max_search_results": 100,
+        "max_tokens": 1_000_000,
+        "max_walltime_seconds": 21600,
+    }
 
     @field_validator("max_turns", "max_search_results", "max_tokens", "max_walltime_seconds")
     @classmethod
@@ -194,6 +308,17 @@ class QuotaCaps(BaseModel):
         if v <= 0:
             raise ValueError("quota fields must be positive integers")
         return v
+
+    @model_validator(mode="after")
+    def _enforce_v1_upper_bounds(self) -> QuotaCaps:
+        for field_name, frozen_max in self._FROZEN_UPPER_BOUNDS.items():
+            value = getattr(self, field_name)
+            if value > frozen_max:
+                raise ValueError(
+                    f"quotas.{field_name} = {value} exceeds the frozen v1 "
+                    f"upper bound ({frozen_max}); v1 caps may only be lowered"
+                )
+        return self
 
 
 class AuditConfig(BaseModel):
@@ -224,6 +349,11 @@ class ProtoGeniusConfig(BaseModel):
     research: ResearchConfig = Field(default_factory=ResearchConfig)
     algo_task: AlgoTaskConfig = Field(default_factory=AlgoTaskConfig)
     documents: DocumentsConfig = Field(default_factory=DocumentsConfig)
+    # v2 additions — see §2.4.A/B/C, §2.7, §2.8, §4.4.
+    insights: InsightsConfig = Field(default_factory=InsightsConfig)
+    layer_docs: LayerDocsConfig = Field(default_factory=LayerDocsConfig)
+    scoped_input: ScopedInputConfig = Field(default_factory=ScopedInputConfig)
+    knowledge_base: KnowledgeBaseConfig = Field(default_factory=KnowledgeBaseConfig)
     demo: DemoConfig = Field(default_factory=DemoConfig)
     testing: TestingConfig = Field(default_factory=TestingConfig)
     quotas: QuotaCaps = Field(default_factory=QuotaCaps)
@@ -255,13 +385,49 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
-def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
-    """Allow top-level overrides via environment variables.
+_QUOTA_ENV_TO_FIELD: dict[str, str] = {
+    "PROTOGENIUS_MAX_TURNS": "max_turns",
+    "PROTOGENIUS_MAX_SEARCH_RESULTS": "max_search_results",
+    "PROTOGENIUS_MAX_TOKENS": "max_tokens",
+    "PROTOGENIUS_MAX_WALLTIME_SECS": "max_walltime_seconds",
+}
 
-    A variable named ``PROTOGENIUS_<UPPER_KEY>`` is interpreted as JSON if it
-    starts with ``{`` or ``[`` or ``"`` — otherwise as a literal scalar.
+
+def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
+    """Apply environment-variable overrides on top of the merged config.
+
+    Two override styles are supported:
+
+    1. **Section overrides** — ``PROTOGENIUS_<TOP_LEVEL_KEY>`` is interpreted
+       as JSON when present, replacing the entire section. Useful for
+       overriding nested config in a single shot, e.g.::
+
+           PROTOGENIUS_LLM='{"provider":"openai","model":"gpt-5"}'
+
+    2. **Scalar shortcuts** — a small set of single-field shortcuts that map
+       to specific schema fields. Currently:
+
+       =========================================  ==========================
+       Variable                                    Mapped field
+       =========================================  ==========================
+       ``PROTOGENIUS_MAX_TURNS``                   ``quotas.max_turns``
+       ``PROTOGENIUS_MAX_SEARCH_RESULTS``          ``quotas.max_search_results``
+       ``PROTOGENIUS_MAX_TOKENS``                  ``quotas.max_tokens``
+       ``PROTOGENIUS_MAX_WALLTIME_SECS``           ``quotas.max_walltime_seconds``
+       =========================================  ==========================
+
+    Variables that don't match either style are ignored — that keeps a
+    user's broader environment from leaking into the config inadvertently.
+
+    Note: secret / endpoint variables such as ``PROTOGENIUS_LLM_API_KEY``,
+    ``PROTOGENIUS_GITHUB_TOKEN`` and ``PROTOGENIUS_ARXIV_MCP_URL`` are NOT
+    consumed here — they are read directly by the relevant adapters
+    (`protogenius.llm`, `protogenius.research.github_mcp`, etc.) at the
+    point of use so that secrets never enter the validated config object.
     """
     prefix = "PROTOGENIUS_"
+
+    # Style 1 — section overrides.
     for env_name, raw in os.environ.items():
         if not env_name.startswith(prefix):
             continue
@@ -272,6 +438,20 @@ def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
             data[key] = json.loads(raw)
         except json.JSONDecodeError:
             data[key] = raw
+
+    # Style 2 — scalar quota shortcuts.
+    for env_name, field_name in _QUOTA_ENV_TO_FIELD.items():
+        raw = os.environ.get(env_name, "").strip()
+        if not raw:
+            continue
+        try:
+            value = int(raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"{env_name} must be an integer; got {raw!r}"
+            ) from exc
+        data.setdefault("quotas", {})[field_name] = value
+
     return data
 
 

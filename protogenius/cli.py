@@ -90,7 +90,15 @@ def show_quotas(config_path: Path | None = typer.Option(None, "--config")) -> No
 
 @app.command()
 def doctor() -> None:
-    """Quick environment check."""
+    """Quick environment check.
+
+    Prints which operating mode is configured (Cursor vs standalone CLI),
+    which required secrets are present, and which optional research
+    credentials are available. Exits non-zero only if there is a HARD
+    blocker for the configured mode.
+    """
+    import os
+
     ok = True
     console.print(f"ProtoGenius version: [bold]{__version__}[/bold]")
     console.print(f"Python: {sys.version.split()[0]}")
@@ -102,12 +110,59 @@ def doctor() -> None:
             f"Platform: [yellow]{plat}[/yellow] (not in v1 acceptance set; demos will be skipped)"
         )
         ok = False
+
     config = load_config()
-    console.print(f"LLM provider: {config.llm.provider} model={config.llm.model}")
-    console.print(
-        f"arXiv MCP env: {config.mcp.arxiv.url_env or '(unset)'} "
-        f"GitHub MCP URL: {config.mcp.github.url or '(unset)'}"
+
+    # ---- mode detection ------------------------------------------------
+    provider = config.llm.provider.lower()
+    if provider == "cursor":
+        console.print(
+            "[cyan]Mode A — Cursor Cloud Agent[/cyan] "
+            "(Python LLM client is intentionally inert)."
+        )
+    else:
+        console.print(
+            f"[cyan]Mode B — Standalone CLI[/cyan] (provider={provider}, "
+            f"model={config.llm.model})"
+        )
+        if not os.environ.get("PROTOGENIUS_LLM_API_KEY"):
+            console.print(
+                "  [red]MISSING[/red] PROTOGENIUS_LLM_API_KEY — required for "
+                "Mode B. Set it or switch to `llm.provider: cursor`."
+            )
+            ok = False
+        else:
+            console.print("  [green]ok[/green] PROTOGENIUS_LLM_API_KEY is set")
+
+    # ---- research credentials -----------------------------------------
+    arxiv_ok = bool(
+        os.environ.get(config.mcp.arxiv.url_env or "")
+        or config.mcp.arxiv.command
     )
+    console.print(
+        f"  arXiv MCP: {'[green]configured[/green]' if arxiv_ok else '[yellow]unset[/yellow] (arXiv adapter will fail; Semantic Scholar / OpenAlex still work)'}"
+    )
+    gh_token = os.environ.get(config.mcp.github.token_env or "PROTOGENIUS_GITHUB_TOKEN", "")
+    console.print(
+        f"  GitHub MCP token: {'[green]set[/green]' if gh_token else '[yellow]unset[/yellow] (Copilot MCP will reject anonymous calls)'}"
+    )
+    s2_ok = bool(os.environ.get("PROTOGENIUS_SEMANTIC_SCHOLAR_API_KEY"))
+    oa_ok = bool(os.environ.get("PROTOGENIUS_OPENALEX_EMAIL"))
+    console.print(
+        f"  Semantic Scholar API key: {'[green]set[/green]' if s2_ok else '[dim]unset (anonymous)[/dim]'}"
+    )
+    console.print(
+        f"  OpenAlex mailto: {'[green]set[/green]' if oa_ok else '[dim]unset (no polite pool)[/dim]'}"
+    )
+
+    # ---- quotas --------------------------------------------------------
+    console.print(
+        f"Quotas (effective): turns={config.quotas.max_turns}, "
+        f"search={config.quotas.max_search_results}, "
+        f"tokens={config.quotas.max_tokens:,}, "
+        f"walltime={config.quotas.max_walltime_seconds}s"
+    )
+
     raise typer.Exit(code=0 if ok else 1)
 
 

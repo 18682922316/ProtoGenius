@@ -3,20 +3,28 @@ description: Blocking gate behaviour. Apply whenever the agent approaches GATE_*
 alwaysApply: true
 ---
 
-# Blocking gate behaviour
+# Blocking gate behaviour (v2)
 
 ProtoGenius has **two** blocking gates plus the clarification cap:
 
-| Gate                         | When                                            | If unconfirmed |
-|------------------------------|-------------------------------------------------|----------------|
-| `GATE_RESEARCH_ADOPTION`     | After all research streams have been produced.  | Block SRS/TDD. |
-| `GATE_DOC_SIGNOFF`           | After SRS + TDD + interfaces + arch are drafted.| Block demo.    |
-| (cap) Clarification ≤ 3 rounds | During CLARIFY stage.                         | **Abort** task.|
+| Gate                         | When                                                          | If unconfirmed |
+|------------------------------|---------------------------------------------------------------|----------------|
+| `GATE_RESEARCH_ADOPTION`     | After insights are produced for every accepted source.        | Block SRS/TDD + four-layer pack. |
+| `GATE_DOC_SIGNOFF`           | After SRS + TDD + four-layer pack are drafted.                | Block demo (or, when no demo, finalize the run). |
+| (cap) Clarification ≤ 3 rounds | During CLARIFY stage.                                       | **Abort** task.|
+
+## v2 merge default (§3)
+
+The doc sign-off gate by default covers **both** the SRS/TDD bundle and
+the four-layer pack in a single confirmation. Set
+`documents.merge_tdd_and_layer_signoff: false` to run two consecutive
+sign-off rounds — the orchestrator labels them `GATE_DOC_SIGNOFF` and
+`GATE_DOC_SIGNOFF:layer_pack` in the audit log.
 
 ## Required behaviour
 
 1. Before entering a gate, summarize the artifacts you would like the user to
-   adopt (tables, diagrams, links — not just raw JSON).
+   adopt (tables, diagrams, links, **coverage_note summary** — not just raw JSON).
 2. Render the prompt: `Run /confirm-research` or `Run /confirm-docs`. Do not
    continue working on the next stage until the user types it.
 3. On a refusal, ask **one** focused follow-up question. If the refusal
@@ -29,3 +37,5 @@ ProtoGenius has **two** blocking gates plus the clarification cap:
 - Inferring user adoption from silence.
 - Pretending the gate has been confirmed when it has not.
 - Skipping the audit-log entry that records the gate decision.
+- Producing a Demo when the effective profile is
+  `research_and_docs_only` and the user has not explicitly asked for it.
