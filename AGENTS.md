@@ -132,6 +132,10 @@ patterns already established under `tests/`.
 - `python3.12-venv` must be installed if you need an isolated venv
   (`sudo apt-get install -y python3.12-venv`). The update script does not
   create a venv; it installs into the system site-packages.
+- The env var `PROTOGENIUS_LLM='{"provider":"cursor","model":"cursor"}'`
+  is set in `~/.bashrc` to select **Mode A (Cursor Cloud Agent)**. This
+  makes Cursor itself the LLM provider; no `PROTOGENIUS_LLM_API_KEY` is
+  required. `protogenius doctor` exits 0 in this mode.
 
 ### Common commands
 
@@ -147,10 +151,9 @@ patterns already established under `tests/`.
 
 ### Caveats
 
-- `protogenius doctor` exits non-zero when `PROTOGENIUS_LLM_API_KEY` is
-  unset. This is expected — standalone CLI mode (Mode B) requires an LLM
-  key. When running as a Cursor Cloud Agent (Mode A with
-  `llm.provider: cursor`), the key is not needed.
+- `protogenius doctor` exits non-zero in Mode B (standalone CLI) when
+  `PROTOGENIUS_LLM_API_KEY` is unset. The Cloud VM is configured for
+  Mode A (`llm.provider: cursor`) so doctor exits 0 by default.
 - The `--dry-run` flag uses a recording LLM client that returns canned
   responses. The pipeline will correctly halt at `GATE_RESEARCH_ADOPTION`
   because the recording client does not produce real research artifacts.
