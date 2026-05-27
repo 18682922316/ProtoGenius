@@ -3,15 +3,25 @@
 > **Task In, Researched Prototype Out** — Autonomous Research-to-Prototype Agent for Task Validation.
 
 ProtoGenius is an end-to-end task validation agent. The user supplies a single
-natural-language task description; the system autonomously performs
-**analysis → clarification → research → design → development → verification**,
-producing a runnable prototype together with IEEE 29148-aligned engineering
-documentation, a test suite, CI configuration and an LLM-based semantic
-alignment report against the frozen SRS / TDD.
+natural-language task description (or a scoped input — see §2.7 below); the
+system autonomously performs **analysis → clarification → research → design →
+development → verification**, producing a runnable prototype together with
+IEEE 29148-aligned engineering documentation, a four-layer technical-asset
+pack, structured insight reports for every adopted research source, a test
+suite, CI configuration and an LLM-based semantic alignment report against
+the frozen SRS / TDD.
 
 ProtoGenius ships as a **Cursor Cloud Agent** with first-class **subagent /
 skill / hook** composition, plus a Python package (`protogenius`) that hosts the
 state machine, research adapters, document generators and CI scaffolds.
+
+> **Spec version**: this repo implements **v2** of the requirements
+> document. Key v2 additions vs. v1: structured-requirements fields
+> (`core_objectives` / `challenges` / `constraints`), per-source insight
+> reports (academic / OSS / enterprise), four-layer tech doc pack with a
+> mandatory formalization block, run profiles
+> (`full_pipeline` ↔ `research_and_docs_only`), scoped research, optional
+> knowledge-base connector, and a merged TDD + layer-pack sign-off gate.
 
 ---
 
@@ -29,18 +39,20 @@ state machine, research adapters, document generators and CI scaffolds.
 
 ---
 
-## Pipeline (v1)
+## Pipeline (v2)
 
 ```mermaid
 flowchart TD
-    A[Natural-language task] --> B[Requirement understanding]
+    A[Natural-language task<br/>(+ optional scoped_input / knowledge_base)] --> B[Requirement understanding]
     B --> C{Need clarification?}
     C -- yes (≤ 3 rounds) --> C
     C -- failed --> X[Abort with reason]
-    C -- ok --> D[Tech-stack analysis ≤ 3 mutually exclusive options]
-    D --> E[Academic research<br/>arXiv MCP + Semantic Scholar + OpenAlex + proc.]
-    D --> F[GitHub research<br/>Copilot-hosted MCP]
-    D --> G[Industry research<br/>Anthropic / OpenAI / DeepMind / ByteDance / Alibaba / Tencent / Meituan]
+    C -- ok --> SP[Select profile<br/>full_pipeline ↔ research_and_docs_only]
+    SP --> KB[Ingest optional KB<br/>local_path / github_repo]
+    KB --> D[Tech-stack analysis ≤ 3 mutually exclusive options]
+    D --> E[Academic research]
+    D --> F[GitHub research]
+    D --> G[Industry research]
     D --> H{Algorithm-class task?}
     H -- yes --> I[First-principles + Mermaid algo diagram + 3 reproducible instances]
     H -- no --> J[skip]
@@ -48,10 +60,12 @@ flowchart TD
     F --> K
     G --> K
     I --> K
-    K --> L[(Gate 1) User adopts research]
-    L --> M[Generate SRS + TDD + interfaces + data structures + arch diagrams (IEEE 29148)]
-    M --> N[(Gate 2) User signs off documents]
-    N --> O[Demo scaffold: fullstack / script / algo]
+    K --> INS[Per-source insight reports<br/>(academic / OSS / enterprise)]
+    INS --> L[(Gate 1) User adopts research]
+    L --> M[Generate SRS + TDD + interfaces + arch (IEEE 29148)]
+    M --> LD[Four-layer tech pack<br/>L1 → L2 → L3 → L4 + formalization]
+    LD --> N[(Gate 2) Doc sign-off<br/>merged: SRS/TDD + layer pack]
+    N --> O[Demo scaffold (skipped if research_and_docs_only)]
     O --> P[Test generation + E2E (when applicable) + CI]
     P --> Q[Execute tests + LLM semantic alignment]
     Q --> R[Test report + issues + improvements + alignment conclusion]
@@ -117,13 +131,18 @@ The orchestrator state machine is shared between the two entry points.
 
 ---
 
-## Human-in-the-loop gates
+## Human-in-the-loop gates (v2)
 
-| Gate                  | Trigger                                  | Behavior on missing confirmation |
-| --------------------- | ---------------------------------------- | -------------------------------- |
-| Clarification         | Ambiguity / missing constraints          | Up to **3 rounds**; abort on failure |
-| Research adoption     | After all research deliverables produced | **Block** SRS/TDD draft & coding |
-| Document sign-off     | After SRS / TDD / interfaces / arch      | **Block** demo build & CI       |
+| Gate                  | Trigger                                                   | Behavior on missing confirmation |
+| --------------------- | --------------------------------------------------------- | -------------------------------- |
+| Clarification         | Ambiguity / missing constraints                           | Up to **3 rounds**; abort on failure |
+| Research adoption     | After insight reports for every accepted source produced  | **Block** SRS/TDD draft & coding |
+| Document sign-off     | After SRS / TDD / interfaces / arch + **four-layer pack** | **Block** demo build & CI       |
+
+By default the second gate covers **both** the SRS/TDD bundle and the
+four-layer pack in a single confirmation (v2 §3 — *merged sign-off*).
+Set `documents.merge_tdd_and_layer_signoff: false` to split into two
+consecutive rounds.
 
 "Fully automatic" applies **between** confirmed gates only — the gates
 themselves always require human input.
@@ -159,12 +178,17 @@ in `audit.jsonl`).
 
 1. Cloud-agent orchestration with subagent / skill / hook split — **v1**
 2. MCP integration (arXiv, GitHub Copilot) + search pipeline — **v1**
-3. Human gate state machine — **v1**
+3. Human gate state machine (incl. v2 merged sign-off) — **v1 / v2**
 4. IEEE 29148 SRS / TDD generators — **v1**
-5. Code generation, build scripts, demo scaffolds — **v1**
-6. Test gen, E2E, CI, LLM-alignment reporting — **v1**
+5. **Insight report skills (academic / OSS / enterprise)** — **v2**
+6. **Four-layer technical doc generator with formalization block** — **v2**
+7. **Domain knowledge-base connector (`local` / `github`)** — **v2**
+8. **Scoped-research router (`full_pipeline` ↔ `research_and_docs_only`)** — **v2**
+9. Code generation, build scripts, demo scaffolds — **v1**
+10. Test gen, E2E, CI, LLM-alignment reporting — **v1**
 
-See the requirements document (frozen at v1) for full normative content.
+See the requirements document (frozen at v2) for full normative content.
+A read-only copy of v1 lives next to v2 for traceability.
 
 ## License
 

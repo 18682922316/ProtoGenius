@@ -1,0 +1,33 @@
+task:
+  description: |
+    Survey beam-search variants and produce a four-layer technical doc
+    pack ready for adoption into our internal AI Application platform.
+
+  # Both profiles are explicit here for clarity. With a scoped_input
+  # present, the profile silently resolves to research_and_docs_only
+  # unless generate_prototype_demo is true.
+  profile: full_pipeline
+  generate_prototype_demo: false
+
+  scoped_input:
+    type: algorithm                # topic | algorithm | theory | product
+    name: beam-search
+    description: |
+      Adaptive- and length-normalised variants for sequence generation.
+
+  knowledge_base:
+    # Either local_path OR github_repo; if both are present, local wins
+    # and the override is recorded in the audit log.
+    local_path: null
+    github_repo: acme/protogenius-kb@main:layers
+
+  structured_requirements_summary:
+    core_objectives:
+      - "Cover ≥ 5 published variants with comparable benchmarks."
+      - "Each variant is mapped to an atomic_algorithm layer doc."
+    challenges:
+      - "Dedup multi-version arXiv submissions of the same author group."
+      - "Reconcile differing perplexity baselines across benchmarks."
+    constraints:
+      - "Token budget ≤ 1M per v2 §7.1."
+      - "All deliverables must run on Linux + Windows."
