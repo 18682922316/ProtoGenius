@@ -52,11 +52,14 @@
 | LLM abstraction  | `protogenius.llm`                                              |
 | Quotas + audit   | `protogenius.quotas`, `protogenius.audit`                      |
 | Hooks            | `protogenius.hooks.{registry,quota_guard,citation_audit,gate_check}` |
-| Research adapters| `protogenius.research.{arxiv_mcp,semantic_scholar,openalex,conference_proc,github_mcp,industry}` |
-| Docs generators  | `protogenius.docs.{srs_generator,tdd_generator,interfaces,architecture}` |
+| Task envelope (v2) | `protogenius.task_input`                                     |
+| Coverage notes (v2) | `protogenius.coverage`                                      |
+| Research adapters| `protogenius.research.{arxiv_mcp,semantic_scholar,openalex,conference_proc,github_mcp,industry,scope}` |
+| Knowledge base (v2) | `protogenius.kb.{local,github,indexer}`                     |
+| Docs generators  | `protogenius.docs.{srs_generator,tdd_generator,interfaces,architecture,insight_generator,layer_docs}` |
 | Demo scaffolds   | `protogenius.demo.{selector,scaffolds,runtime_check}`          |
 | Testing          | `protogenius.testing.{spec_layer,generator,e2e,ci_generator,alignment}` |
-| Templates        | `templates/*.md`                                               |
+| Templates        | `templates/*.md` (incl. `insight_*.md`, `layer_l{1,2,3,4}_*.md`) |
 
 ## Adding a new sub-agent
 
