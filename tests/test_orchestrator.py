@@ -120,14 +120,30 @@ def _make_handlers(orch: Orchestrator) -> None:
             satisfies_requirements=True,
         )
 
+    def select_profile(_ctx, _o):
+        return None
+
+    def ingest_kb(_ctx, _o):
+        return None
+
+    def generate_insights(_ctx, _o):
+        return None
+
+    def draft_layer_docs(_ctx, _o):
+        return None
+
     orch.register(Stage.UNDERSTAND_REQUIREMENT, understand)
     orch.register(Stage.CLARIFY, clarify)
+    orch.register(Stage.SELECT_PROFILE, select_profile)
+    orch.register(Stage.INGEST_KB, ingest_kb)
     orch.register(Stage.ANALYZE_STACK, stack)
     orch.register(Stage.RESEARCH_ACADEMIC, research_academic)
     orch.register(Stage.RESEARCH_GITHUB, research_github)
     orch.register(Stage.RESEARCH_INDUSTRY, research_industry)
     orch.register(Stage.CROSS_COMPARE, cross_compare)
+    orch.register(Stage.GENERATE_INSIGHTS, generate_insights)
     orch.register(Stage.DRAFT_DOCS, draft_docs)
+    orch.register(Stage.DRAFT_LAYER_DOCS, draft_layer_docs)
     orch.register(Stage.BUILD_DEMO, build_demo)
     orch.register(Stage.GENERATE_TESTS_AND_CI, gen_tests)
     orch.register(Stage.EXECUTE_TESTS, execute_tests)
