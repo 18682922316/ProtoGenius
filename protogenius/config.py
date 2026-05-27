@@ -36,14 +36,26 @@ class RuntimeConfig(BaseModel):
     workspace_root: str = "runs"
     random_seed: int = 20260101
     acceptance_platforms: list[str] = Field(default_factory=lambda: ["linux", "windows"])
+    # v2 §2.6 — the default run profile when no scoped_input is provided.
+    # Scoped inputs (§2.7) automatically switch the profile to
+    # research_and_docs_only inside protogenius.context.RunContext.resolve_profile().
+    default_profile: str = "full_pipeline"
 
     @field_validator("acceptance_platforms")
     @classmethod
     def _no_macos(cls, v: list[str]) -> list[str]:
-        # macOS is explicitly NOT a v1 acceptance target.
+        # macOS is explicitly NOT a v1/v2 acceptance target.
         if "macos" in {p.lower() for p in v}:
-            raise ValueError("macOS is not a v1 acceptance platform")
+            raise ValueError("macOS is not a v2 acceptance platform")
         return [p.lower() for p in v]
+
+    @field_validator("default_profile")
+    @classmethod
+    def _known_profile(cls, v: str) -> str:
+        allowed = {"full_pipeline", "research_and_docs_only"}
+        if v not in allowed:
+            raise ValueError(f"runtime.default_profile must be one of {sorted(allowed)}")
+        return v
 
 
 class LLMConfig(BaseModel):
@@ -163,6 +175,91 @@ class AlgoTaskConfig(BaseModel):
 class DocumentsConfig(BaseModel):
     standard: str = "IEEE-29148-2018"
     generate: list[str] = Field(default_factory=list)
+    # v2 §3 — merge the TDD review and the four-layer pack into ONE sign-off
+    # gate by default. Operators can opt back into two separate gates by
+    # setting this to False; the orchestrator then runs an extra
+    # `GATE_LAYER_DOC_SIGNOFF` immediately after `GATE_DOC_SIGNOFF`.
+    merge_tdd_and_layer_signoff: bool = True
+
+
+class LayerDocsConfig(BaseModel):
+    """v2 §4.4 — four-layer technical documentation system."""
+
+    # Layer ids and human labels. Ordered bottom-up so that the dependency
+    # arrow `L1 -> L2 -> L3 -> L4` is obvious from the list itself.
+    layers: list[str] = Field(
+        default_factory=lambda: [
+            "foundation_theory",
+            "atomic_algorithm",
+            "tech_topic",
+            "ai_application",
+        ]
+    )
+    # v2 §4.4.5 — every layer doc MUST contain a `## 形式化定义` block
+    # (or equivalent). The generator enforces this; the audit log records
+    # any layer that lacked one. Setting this to False is allowed for
+    # internal experiments but flagged in the doctor command.
+    require_formalization_block: bool = True
+    # v2 §2.5 — minimum-content "底线". Every generated layer doc MUST at
+    # least carry frontmatter + a basic/core info section + a
+    # formalization block + a reference list, otherwise the run aborts.
+    enforce_minimum_content: bool = True
+
+
+class InsightsConfig(BaseModel):
+    """v2 §2.4.A/B/C — insight reports per accepted research item."""
+
+    # One insight per accepted source by default. The synthesizer may
+    # bundle multiple sources into a single insight (e.g. survey paper +
+    # follow-up) when justified; the generator records that in the
+    # report's `coverage_note`.
+    one_per_accepted_source: bool = True
+    insight_types: list[str] = Field(
+        default_factory=lambda: ["academic", "oss", "enterprise"]
+    )
+    # v2 §2.5 minimum content. Every insight MUST carry:
+    #   - identification (insight_id / insight_type / title / source link)
+    #   - core conclusions
+    #   - auditable citation (url / doi / version / accessed_at)
+    # Setting this to False relaxes the check at the cost of losing the
+    # audit guarantee — strongly discouraged.
+    enforce_minimum_content: bool = True
+
+
+class ScopedInputConfig(BaseModel):
+    """v2 §2.7 — accepted scoped-input types."""
+
+    allowed_types: list[str] = Field(
+        default_factory=lambda: ["topic", "algorithm", "theory", "product"]
+    )
+    # Default behavior when a scoped_input is present and the user has
+    # NOT explicitly asked for a prototype demo. Per §2.7 / §5 / §8 the
+    # scoped run must default to research_and_docs_only with NO demo.
+    default_profile_when_scoped: str = "research_and_docs_only"
+    default_generate_prototype_demo: bool = False
+    # Quota proportional scaling for scoped runs (frozen v2: cannot
+    # exceed §7.1 hard caps; this knob only scales DOWN).
+    quota_scale_factor: float = 0.5
+
+
+class KnowledgeBaseConfig(BaseModel):
+    """v2 §2.8 — optional domain knowledge base."""
+
+    # Both fields are user-supplied at runtime; the defaults here only
+    # describe the *capability*, not a default content source.
+    enabled: bool = False
+    local_path: str | None = None
+    # ``github_repo`` format: ``owner/repo@ref:subdir`` (ref is optional;
+    # subdir is optional). Parsed by protogenius.kb.github.parse_locator.
+    github_repo: str | None = None
+    # Conflict marking — when KB and current research disagree, the
+    # generator inserts a CONFLICT marker into the relevant layer doc and
+    # records a decision event in the audit log. The user-confirmation
+    # outcome resolves the conflict.
+    mark_conflicts: bool = True
+    # Cap on how many KB documents we read in a single run. Keeps the
+    # quota budget predictable.
+    max_docs_per_run: int = 200
 
 
 class DemoConfig(BaseModel):
@@ -252,6 +349,11 @@ class ProtoGeniusConfig(BaseModel):
     research: ResearchConfig = Field(default_factory=ResearchConfig)
     algo_task: AlgoTaskConfig = Field(default_factory=AlgoTaskConfig)
     documents: DocumentsConfig = Field(default_factory=DocumentsConfig)
+    # v2 additions — see §2.4.A/B/C, §2.7, §2.8, §4.4.
+    insights: InsightsConfig = Field(default_factory=InsightsConfig)
+    layer_docs: LayerDocsConfig = Field(default_factory=LayerDocsConfig)
+    scoped_input: ScopedInputConfig = Field(default_factory=ScopedInputConfig)
+    knowledge_base: KnowledgeBaseConfig = Field(default_factory=KnowledgeBaseConfig)
     demo: DemoConfig = Field(default_factory=DemoConfig)
     testing: TestingConfig = Field(default_factory=TestingConfig)
     quotas: QuotaCaps = Field(default_factory=QuotaCaps)
